@@ -43,8 +43,9 @@ def get_first_row():
     """
     Read and return the first row from the Google Sheet.
 
-    Returns a dict with keys: row_index, link, raw_row
-    Returns None if the sheet is empty.
+    Returns a dict with keys: row_index, link, image_url, raw_row
+    image_url is pulled from column D (if present and non-empty), else None.
+    Returns None if the sheet is empty or the link cell is empty.
     row_index is always 1 (the first row).
     """
     # Connect to Google Sheets
@@ -75,6 +76,9 @@ def get_first_row():
     link_col_index = ord(config.GOOGLE_SHEET_LINK_COLUMN.upper()) - ord("A")
     log.debug(f"Link column '{config.GOOGLE_SHEET_LINK_COLUMN}' = index {link_col_index}")
 
+    # Image URL lives in column D (hardcoded). 0-based index 3.
+    image_col_index = 3
+
     # Check if the sheet has any rows
     if len(all_rows) == 0:
         log.info("Sheet is empty — no rows to post")
@@ -96,10 +100,25 @@ def get_first_row():
         log.info("First row has an empty link column — skipping")
         return None
 
+    # Pull the optional image URL from column D, if the row is wide enough
+    # and the cell is non-empty. Otherwise image_url stays None and main.py
+    # falls back to the plain-text sendMessage path.
+    image_url = None
+    if len(first_row) > image_col_index:
+        candidate = first_row[image_col_index].strip()
+        if candidate:
+            image_url = candidate
+            log.info(f"Image URL found in column D: {image_url}")
+        else:
+            log.info("Column D is empty — will post text only")
+    else:
+        log.info("Row has no column D — will post text only")
+
     # Return the first row data
     log.success(f"First row ready to post: {link_value}")
     return {
         "row_index": 1,
         "link": link_value,
+        "image_url": image_url,
         "raw_row": first_row,
     }

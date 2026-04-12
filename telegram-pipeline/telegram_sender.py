@@ -5,7 +5,7 @@ Uses the requests library to call the Telegram Bot API directly.
 Includes bot and channel validation, rate limiting, and verbose logging.
 
 Imports: requests, time, config, logger
-Exports: send_message(), validate_bot(), validate_channel()
+Exports: send_message(), send_photo(), validate_bot(), validate_channel()
 """
 
 import time
@@ -117,6 +117,64 @@ def send_message(text):
         if data.get("ok"):
             message_id = data["result"]["message_id"]
             log.success(f"Message sent successfully! message_id={message_id}")
+            return data
+        else:
+            error_desc = data.get("description", "Unknown error")
+            log.error(f"Telegram API error: {error_desc}")
+            log.error(f"Full response: {data}")
+            raise Exception(f"Telegram API error: {error_desc}")
+
+    except requests.ConnectionError as e:
+        log.error(f"Connection error: {e}")
+        raise
+    except requests.Timeout as e:
+        log.error(f"Request timed out: {e}")
+        raise
+
+
+def send_photo(photo_url, caption):
+    """
+    Send a photo (by remote URL) with an HTML caption to the Telegram channel.
+
+    Telegram fetches the photo_url itself, so it must be publicly reachable.
+    Caption supports HTML (parse_mode=HTML) and is capped at 1024 chars by
+    Telegram. Includes the same 3-second rate limit as send_message.
+    Returns the API response dict on success. Raises on failure.
+    """
+    global _last_send_time
+
+    # Rate limit guard: ensure at least 3 seconds between sends
+    now = time.time()
+    elapsed = now - _last_send_time
+    if _last_send_time > 0 and elapsed < 3:
+        wait_time = 3 - elapsed
+        log.warning(f"Rate limit: waiting {wait_time:.1f}s before sending...")
+        time.sleep(wait_time)
+
+    log.info(f"Sending photo to channel {config.TELEGRAM_CHANNEL_ID}...")
+    log.debug(f"Photo URL: {photo_url}")
+    log.debug(f"Caption: {caption[:100]}{'...' if len(caption) > 100 else ''}")
+
+    try:
+        response = requests.post(
+            f"{API_BASE}/sendPhoto",
+            json={
+                "chat_id": config.TELEGRAM_CHANNEL_ID,
+                "photo": photo_url,
+                "caption": caption,
+                "parse_mode": "HTML",
+            },
+            timeout=30,
+        )
+
+        # Update the last send time
+        _last_send_time = time.time()
+
+        data = response.json()
+
+        if data.get("ok"):
+            message_id = data["result"]["message_id"]
+            log.success(f"Photo sent successfully! message_id={message_id}")
             return data
         else:
             error_desc = data.get("description", "Unknown error")

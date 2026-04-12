@@ -15,6 +15,7 @@ Exports: none (entry point)
 
 import sys
 import uuid
+import html
 import traceback
 from logger import get_logger
 
@@ -38,7 +39,7 @@ def main():
 
     # Step 3: Validate Telegram bot token
     log.info("Validating Telegram bot...")
-    from telegram_sender import validate_bot, validate_channel, send_message
+    from telegram_sender import validate_bot, validate_channel, send_message, send_photo
 
     if not validate_bot():
         log.error("Bot token is invalid — cannot continue. Check TELEGRAM_BOT_TOKEN in .env")
@@ -65,10 +66,18 @@ def main():
     # Step 6: Log the row data we found
     log.info(f"Row {row['row_index']} will be posted: {row['link']}")
 
-    # Step 7: Send the message to Telegram
-    log.info("Sending message to Telegram channel...")
+    # Step 7: Send to Telegram. If the row has an image URL (column D), post
+    # the photo with a caption containing a tappable "View deal" link.
+    # Otherwise fall back to the plain-text send.
     try:
-        send_message(row["link"])
+        if row.get("image_url"):
+            safe_link = html.escape(row["link"], quote=True)
+            caption = f'<a href="{safe_link}">View deal</a>'
+            log.info("Sending photo with caption link to Telegram channel...")
+            send_photo(row["image_url"], caption)
+        else:
+            log.info("Sending text message to Telegram channel...")
+            send_message(row["link"])
     except Exception as e:
         log.error(f"Failed to send message: {e}")
         log.error("Row was NOT marked as posted — will retry on next run")
