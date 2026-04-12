@@ -79,6 +79,20 @@ def get_first_row():
     # Image URL lives in column D (hardcoded). 0-based index 3.
     image_col_index = 3
 
+    # Extra caption fields (hardcoded positions):
+    #   B (index 1) = code         (may be blank)
+    #   F (index 5) = discount     (e.g. "77%")
+    #   G (index 6) = coupon/promo code
+    code_col_index = 1
+    discount_col_index = 5
+    coupon_col_index = 6
+
+    def _cell(row, idx):
+        """Return stripped value at idx, or '' if row is too short."""
+        if len(row) > idx:
+            return row[idx].strip()
+        return ""
+
     # Check if the sheet has any rows
     if len(all_rows) == 0:
         log.info("Sheet is empty — no rows to post")
@@ -114,11 +128,23 @@ def get_first_row():
     else:
         log.info("Row has no column D — will post text only")
 
+    # Pull optional caption fields. All may be blank.
+    code_value = _cell(first_row, code_col_index)
+    discount_value = _cell(first_row, discount_col_index)
+    coupon_value = _cell(first_row, coupon_col_index)
+    log.debug(
+        f"Caption fields — discount(F)='{discount_value}' "
+        f"coupon(G)='{coupon_value}' code(B)='{code_value}'"
+    )
+
     # Return the first row data
     log.success(f"First row ready to post: {link_value}")
     return {
         "row_index": 1,
         "link": link_value,
         "image_url": image_url,
+        "code": code_value,
+        "discount": discount_value,
+        "coupon": coupon_value,
         "raw_row": first_row,
     }

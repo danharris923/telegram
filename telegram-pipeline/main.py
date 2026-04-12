@@ -66,18 +66,31 @@ def main():
     # Step 6: Log the row data we found
     log.info(f"Row {row['row_index']} will be posted: {row['link']}")
 
-    # Step 7: Send to Telegram. If the row has an image URL (column D), post
-    # the photo with a caption containing a tappable "View deal" link.
-    # Otherwise fall back to the plain-text send.
+    # Step 7: Build the caption/message from optional sheet fields:
+    #   F (discount) → "<F> off"
+    #   G (coupon) or B (code) → "use promo code <X> and save"
+    # The tappable "View deal" link is always appended on its own line.
+    caption_lines = []
+    if row.get("discount"):
+        caption_lines.append(f"{html.escape(row['discount'])} off")
+    promo_code = row.get("coupon") or row.get("code") or ""
+    if promo_code:
+        caption_lines.append(
+            f"use promo code {html.escape(promo_code)} and save"
+        )
+    safe_link = html.escape(row["link"], quote=True)
+    caption_lines.append(f'<a href="{safe_link}">View deal</a>')
+    caption = "\n".join(caption_lines)
+
+    # Step 8: Send to Telegram. If the row has an image URL (column D), post
+    # the photo with the caption. Otherwise send the caption as a text message.
     try:
         if row.get("image_url"):
-            safe_link = html.escape(row["link"], quote=True)
-            caption = f'<a href="{safe_link}">View deal</a>'
-            log.info("Sending photo with caption link to Telegram channel...")
+            log.info("Sending photo with caption to Telegram channel...")
             send_photo(row["image_url"], caption)
         else:
             log.info("Sending text message to Telegram channel...")
-            send_message(row["link"])
+            send_message(caption)
     except Exception as e:
         log.error(f"Failed to send message: {e}")
         log.error("Row was NOT marked as posted — will retry on next run")
