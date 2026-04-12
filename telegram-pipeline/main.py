@@ -69,7 +69,9 @@ def main():
     # Step 7: Build the caption/message from optional sheet fields:
     #   F (discount) → "<F> off"
     #   G (coupon) or B (code) → "use promo code <X> and save"
-    # The tappable "View deal" link is always appended on its own line.
+    # The final line is always "View deal". The ENTIRE caption (all lines)
+    # is wrapped in a single <a href=...> so every line is tappable — more
+    # clickable real estate than just a "View deal" link.
     caption_lines = []
     if row.get("discount"):
         caption_lines.append(f"{html.escape(row['discount'])} off")
@@ -78,9 +80,9 @@ def main():
         caption_lines.append(
             f"use promo code {html.escape(promo_code)} and save"
         )
+    caption_lines.append("View deal")
     safe_link = html.escape(row["link"], quote=True)
-    caption_lines.append(f'<a href="{safe_link}">View deal</a>')
-    caption = "\n".join(caption_lines)
+    caption = f'<a href="{safe_link}">' + "\n".join(caption_lines) + "</a>"
 
     # Step 8: Send to Telegram. If the row has an image URL (column D), post
     # the photo with the caption. Otherwise send the caption as a text message.
