@@ -1,0 +1,16 @@
+# Secrets — never commit
+.env
+google_service_account.json
+**/google_service_account.json
+
+# Playwright persistent Chrome profile (contains amazon.ca login cookies)
+.amazon_chrome_profile/
+**/.amazon_chrome_profile/
+
+# Python
+__pycache__/
+*.pyc
+*.bak
+
+# Personal notes
+telegram.txt
