@@ -62,40 +62,72 @@ python main.py                             # normal run (with jitter sleep)
 TELEGRAM_PIPELINE_NO_JITTER=1 python main.py  # skip the jitter for debugging
 ```
 
-### Cron schedule — 20 posts/day at random waking-hour times
+### Schedule — 20 posts/day at random waking-hour times
 
 Goal: up to 20 posts/day, staggered across ~7 AM – 10 PM Canadian local time, with timing that drifts day-to-day so the feed doesn't look automated. Two mechanisms combined:
 
-1. **20 explicit cron entries** at ~48-minute intervals.
+1. **20 explicit systemd OnCalendar entries** at ~48-minute intervals, each qualified with `America/Toronto` so the droplet can stay on UTC without affecting other workloads.
 2. **In-script jitter sleep**: `main.py` sleeps a uniform random 0–20 min at the start of every run (see `JITTER_MAX_SECONDS` in `main.py`). Set `TELEGRAM_PIPELINE_NO_JITTER=1` to disable for manual testing.
 
-Server time must be set to Canadian local (e.g. `timedatectl set-timezone America/Toronto`), otherwise adjust the hours. Crontab:
+Deployment on the scraper droplet uses **systemd timers, not cron** (the crontab contains only a migration-note comment). Two units:
 
-```
-# 20 staggered slots, 07:03 → 22:15 local, every ~48 min. main.py adds 0-20 min jitter.
- 3  7 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-51  7 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-39  8 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-27  9 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-15 10 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
- 3 11 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-51 11 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-39 12 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-27 13 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-15 14 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
- 3 15 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-51 15 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-39 16 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-27 17 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-15 18 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
- 3 19 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-51 19 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-39 20 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-27 21 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
-15 22 * * * cd /path/to/telegram-pipeline && /usr/bin/python3 main.py >> /var/log/telegram-pipeline.log 2>&1
+`/etc/systemd/system/telegram-pipeline.service`:
+```ini
+[Unit]
+Description=Telegram posting pipeline
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/telegram/telegram-pipeline
+ExecStart=/usr/bin/python3 /opt/telegram/telegram-pipeline/main.py
+TimeoutStartSec=300
 ```
 
-If the sheet runs out mid-day, each remaining cron fire exits cleanly with "No rows remaining" — no harm done.
+`/etc/systemd/system/telegram-pipeline.timer`:
+```ini
+[Unit]
+Description=Telegram pipeline — 20 posts/day across Canadian waking hours
+
+[Timer]
+# 20 slots at ~48-min intervals, 07:03 to 22:15 America/Toronto.
+# main.py adds an in-script 0-20 min random jitter on top of these fixed times.
+OnCalendar=*-*-* 07:03:00 America/Toronto
+OnCalendar=*-*-* 07:51:00 America/Toronto
+OnCalendar=*-*-* 08:39:00 America/Toronto
+OnCalendar=*-*-* 09:27:00 America/Toronto
+OnCalendar=*-*-* 10:15:00 America/Toronto
+OnCalendar=*-*-* 11:03:00 America/Toronto
+OnCalendar=*-*-* 11:51:00 America/Toronto
+OnCalendar=*-*-* 12:39:00 America/Toronto
+OnCalendar=*-*-* 13:27:00 America/Toronto
+OnCalendar=*-*-* 14:15:00 America/Toronto
+OnCalendar=*-*-* 15:03:00 America/Toronto
+OnCalendar=*-*-* 15:51:00 America/Toronto
+OnCalendar=*-*-* 16:39:00 America/Toronto
+OnCalendar=*-*-* 17:27:00 America/Toronto
+OnCalendar=*-*-* 18:15:00 America/Toronto
+OnCalendar=*-*-* 19:03:00 America/Toronto
+OnCalendar=*-*-* 19:51:00 America/Toronto
+OnCalendar=*-*-* 20:39:00 America/Toronto
+OnCalendar=*-*-* 21:27:00 America/Toronto
+OnCalendar=*-*-* 22:15:00 America/Toronto
+Persistent=true
+RandomizedDelaySec=0
+
+[Install]
+WantedBy=timers.target
+```
+
+Notes on the settings:
+- `Persistent=true` — if the box is down at a trigger time, systemd runs the missed job once it comes back up.
+- `RandomizedDelaySec=0` — deliberate. The in-script jitter in `main.py` already handles day-to-day drift; stacking systemd's randomization on top would double-jitter.
+- Timezone is specified **per entry** (`America/Toronto`), not via `timedatectl`. This keeps the system clock on UTC for logs and other scraper workloads on the same droplet.
+
+After editing either unit: `systemctl daemon-reload && systemctl restart telegram-pipeline.timer`. Verify: `systemctl list-timers telegram-pipeline.timer`.
+
+If the sheet runs out mid-day, each remaining trigger exits cleanly with "No rows remaining" — no harm done.
 
 **Single-run pipeline** — each invocation posts exactly one row then exits. Flow in `main.py`:
 
