@@ -89,14 +89,11 @@ def main():
     log.info(f"Row {row['row_index']} will be posted: {row['link']}")
 
     # Step 7: Build the caption/message from optional sheet fields:
-    #   F (discount) → "<F> off"
     #   G (coupon) or B (code) → "use promo code <X> and save"
     # The final line is always "View deal". The ENTIRE caption (all lines)
     # is wrapped in a single <a href=...> so every line is tappable — more
     # clickable real estate than just a "View deal" link.
     caption_lines = []
-    if row.get("discount"):
-        caption_lines.append(f"{html.escape(row['discount'])} off")
     promo_code = row.get("coupon") or row.get("code") or ""
     if promo_code:
         caption_lines.append(
